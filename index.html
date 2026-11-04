@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pathology Review Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .perspective-1000 { perspective: 1000px; }
+    .transform-style-3d { transform-style: preserve-3d; }
+    .backface-hidden { backface-visibility: hidden; }
+    .rotate-y-180 { transform: rotateY(180deg); }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // --- ORGAN SYSTEMS DATABASE ---
+    const ORGAN_SYSTEMS = [
+      { id: 'gen', name: 'General Pathology', icon: 'fa-microscope', color: 'indigo', count: 24, tag: 'Core Concept' },
+      { id: 'cv', name: 'Cardiovascular', icon: 'fa-heart-pulse', color: 'rose', count: 22, tag: 'High-Yield' },
+      { id: 'resp', name: 'Respiratory', icon: 'fa-lungs', color: 'sky', count: 20, tag: 'High-Yield' },
+      { id: 'gi', name: 'Gastrointestinal', icon: 'fa-disease', color: 'amber', count: 25, tag: 'High-Yield' },
+      { id: 'renal', name: 'Renal & Urinary', icon: 'fa-filter', color: 'emerald', count: 19, tag: 'Essential' },
+      { id: 'neuro', name: 'Neuropathology', icon: 'fa-brain', color: 'purple', count: 21, tag: 'Complex' },
+      { id: 'endo', name: 'Endocrine', icon: 'fa-dna', color: 'pink', count: 18, tag: 'High-Yield' },
+      { id: 'hema', name: 'Hematopathology', icon: 'fa-droplet', color: 'red', count: 23, tag: 'Essential' }
+    ];
+
+    const MODULE_DETAILS = {
+      gen: {
+        title: "General Pathology & Cell Injury",
+        overview: "Mechanisms of cellular adaptation, reversible/irreversible injury, necrosis patterns, apoptosis pathways, and acute/chronic inflammation.",
+        triads: [
+          { name: "Virchow's Triad (Thrombosis)", items: ["Endothelial Injury", "Stasis / Turbulent Blood Flow", "Hypercoagulability"] },
+          { name: "Granulomatous Inflammation Classic Features", items: ["Epithelioid Histiocytes", "Multinucleated Giant Cells", "Rim of T-Lymphocytes"] }
+        ],
+        pearls: [
+          "Coagulative necrosis is typical of hypoxia/ischemia in all solid organs EXCEPT the brain (which undergoes liquefactive necrosis).",
+          "Psammoma bodies (laminated calcifications) mnemonic PSMM: Papillary thyroid ca, Serous ovarian ca, Meningioma, Mesothelioma.",
+          "Apoptosis is ATP-dependent cell suicide. Extrinsic pathway = Fas-L/TNF-a & Caspase-8; Intrinsic = Bcl-2/Bax & Caspase-9."
+        ],
+        topics: [
+          { title: "Cellular Adaptations", content: "Hypertrophy (size increase), Hyperplasia (number increase), Atrophy (decrease in cell size/number), Metaplasia (reprogrammable stem cell response, e.g., Barrett's Esophagus).", markers: ["p53", "Bcl-2", "Bax", "Caspase-3/8/9"] },
+          { title: "Patterns of Necrosis", content: "Coagulative (ischemic infarcts), Liquefactive (bacterial infections & brain ischemia), Caseous (TB/fungal), Fat necrosis (acute pancreatitis, saponification with Ca2+), Fibrinoid (vasculitis/hypertension).", markers: ["Troponin", "CK-MB", "Amylase/Lipase"] }
+        ]
+      },
+      cv: {
+        title: "Cardiovascular Pathology",
+        overview: "Ischemic heart disease, vascular aneurysms/dissections, cardiomyopathies, infective endocarditis, and vasculitis syndromes.",
+        triads: [
+          { name: "Beck's Triad (Cardiac Tamponade)", items: ["Hypotension", "Distended Neck Veins (JVD)", "Muffled Heart Sounds"] },
+          { name: "Charcot Triad (Infective Endocarditis)", items: ["Fever", "Heart Murmur", "Petechiae / Splinter Hemorrhages"] }
+        ],
+        pearls: [
+          "Troponin I is the most specific cardiac marker for MI; rises in 2-4h, peaks at 24h, remains elevated for 7-10 days.",
+          "Aschoff bodies with Anitschkow 'caterpillar' cells are pathognomonic histological findings for Acute Rheumatic Fever.",
+          "Temporal (Giant Cell) Arteritis affects elderly females; presents with jaw claudication, elevated ESR, risks irreversible blindness."
+        ],
+        topics: [
+          { title: "Myocardial Infarction Evolution", content: "<4h: No light microscopic changes. 4-24h: Coagulative necrosis & wavy fibers. 1-3 days: Neutrophilic infiltrate. 3-14 days: Macrophages & granulation tissue (highest rupture risk!). >2 weeks: Fibrotic scar.", markers: ["cTnI", "cTnT", "CK-MB", "LDH"] },
+          { title: "Aortic Dissection & Aneurysms", content: "Aortic dissection involves an intimal tear creating a false lumen. Strongly associated with long-standing HTN and connective tissue disorders (Marfan, Ehlers-Danlos).", markers: ["D-Dimer", "CTA", "Transesophageal Echo"] }
+        ]
+      },
+      resp: {
+        title: "Respiratory Pathology",
+        overview: "Obstructive vs. restrictive pulmonary diseases, pneumonia, lung neoplasms, pulmonary embolism, and ARDS.",
+        triads: [
+          { name: "Virchow's Triad in PE", items: ["Venous Stasis", "Hypercoagulability", "Vascular Endothelial Wall Damage"] }
+        ],
+        pearls: [
+          "Small Cell Lung Carcinoma (SCLC) is associated with paraneoplastic syndromes: Cushing (ACTH), SIADH (ADH), Lambert-Eaton (presynaptic Ca2+ channel Antibodies).",
+          "Centrilobular emphysema is caused by smoking (upper lobes); Panacinar emphysema is caused by Alpha-1 Antitrypsin deficiency (lower lobes).",
+          "Asbestos exposure produces ferruginous bodies (golden-brown dumbbell-shaped fibers) and leads to Bronchogenic Ca > Mesothelioma."
+        ],
+        topics: [
+          { title: "Obstructive Lung Diseases", content: "Characterized by decreased FEV1/FVC ratio (<0.70). Includes Asthma (Curschmann's spirals, Charcot-Leyden crystals), COPD (Chronic Bronchitis with Reid index >0.5, Emphysema), and Bronchiectasis.", markers: ["Eosinophils", "IgE", "AAT levels"] },
+          { title: "Restrictive Lung Pathology", content: "Characterized by decreased Total Lung Capacity (TLC) with normal or increased FEV1/FVC ratio. Includes Idiopathic Pulmonary Fibrosis (honeycombing), Sarcoidosis (non-caseating granulomas), and Pneumoconioses.", markers: ["ACE", "CD4/CD8 ratio in BAL", "High-Resolution CT"] }
+        ]
+      },
+      gi: {
+        title: "Gastrointestinal & Liver Pathology",
+        overview: "Esophageal motility disorders, PUD, Inflammatory Bowel Disease (Crohn's vs. UC), colorectal neoplasia, hepatitis, and liver cirrhosis.",
+        triads: [
+          { name: "Charcot Triad (Acute Cholangitis)", items: ["Jaundice", "Fever", "Right Upper Quadrant (RUQ) Pain"] }
+        ],
+        pearls: [
+          "Crohn's Disease: Transmural inflammation, skip lesions, non-caseating granulomas, creeping fat, string sign on barium X-ray.",
+          "Ulcerative Colitis: Mucosal/submucosal inflammation, continuous involvement from rectum, pseudopolyps, crypt abscesses, lead-pipe colon.",
+          "Barrett Esophagus: Metaplasia of lower esophagus from stratified squamous to non-ciliated simple columnar epithelium with goblet cells due to chronic GERD."
+        ],
+        topics: [
+          { title: "Colorectal Cancer Pathways", content: "1) Adenoma-Carcinoma Sequence: APC gene mutation -> KRAS mutation -> p53 loss. 2) Microsatellite Instability (MSI) Pathway: Mismatch repair gene defect (Lynch Syndrome).", markers: ["CEA", "p53", "MSI-H", "BRAF"] },
+          { title: "Liver Cirrhosis & Portal HTN", content: "Cirrhosis features diffuse nodular regeneration surrounded by fibrous bands (activated Stellate/Ito cells). Causes ascites, esophageal varices, splenomegaly, hepatic encephalopathy.", markers: ["ALT/AST", "Total Bilirubin", "Albumin", "INR"] }
+        ]
+      },
+      renal: {
+        title: "Renal & Urinary Pathology",
+        overview: "Nephrotic vs. Nephritic syndromes, Acute Kidney Injury (AKI), Chronic Kidney Disease, renal cell carcinoma, and cystic kidney diseases.",
+        triads: [
+          { name: "Classic Renal Cell Carcinoma Triad", items: ["Flank Pain", "Palpable Abdominal Mass", "Hematuria (Only 10% present with all 3)"] }
+        ],
+        pearls: [
+          "Nephrotic Syndrome: Protienuria (>3.5g/day), Hypoalbuminemia, Edema, Hyperlipidemia, Fatty casts (Maltese cross).",
+          "Nephritic Syndrome: Hematuria, RBC casts, Oliguria, Azotemia, Hypertension.",
+          "Minimal Change Disease: Most common in children; effacement of podocyte foot processes on EM; normal light microscopy; excellent response to steroids."
+        ],
+        topics: [
+          { title: "Glomerular Pathology Spectrum", content: "Membranous Nephropathy (spike and dome on EM, PLA2R antibody), IgA Nephropathy / Berger Disease (IgA immune complex deposition in mesangium following URI), Post-streptococcal GN (lumpy-bumpy subepithelial humps).", markers: ["anti-PLA2R", "C3/C4", "ANCA", "Anti-GBM"] },
+          { title: "Renal Cell Carcinoma (RCC)", content: "Clear cell RCC is the most common subtype (associated with VHL gene mutation on chromosome 3p). Microscopic view shows cells filled with accumulated lipids and glycogen.", markers: ["VHL", "Erythropoietin", "PTHrP"] }
+        ]
+      },
+      neuro: {
+        title: "Neuropathology",
+        overview: "Cerebrovascular disease, neurodegenerative disorders, CNS tumors, demyelinating conditions, and infectious meningitis.",
+        triads: [
+          { name: "Cushing Triad (Increased ICP)", items: ["Hypertension (Widened Pulse Pressure)", "Bradycardia", "Irregular Respirations"] }
+        ],
+        pearls: [
+          "Glioblastoma Multiforme (GBM): Grade IV astrocytoma; pseudopalisading necrosis with microvascular proliferation; crosses corpus callosum ('butterfly glioma').",
+          "Alzheimer Disease: Extracellular amyloid-beta plaques & intracellular hyperphosphorylated tau neurofibrillary tangles.",
+          "Multiple Sclerosis: Demyelinating disease with perivenous oligodendrocyte loss, oligodendrocyte destruction, elevated CSF oligoclonal bands."
+        ],
+        topics: [
+          { title: "CNS Tumors & Histology", content: "Meningioma (whorled pattern with psammoma bodies, dural tail), Schwannoma (S100+, Antoni A and B areas, Verocay bodies), Medulloblastoma (small round blue cells, Homer Wright rosettes in children).", markers: ["GFAP", "S100", "Synaptophysin", "Ki-67"] },
+          { title: "Neurodegenerative Pathology", content: "Parkinson Disease (loss of dopaminergic neurons in substantia nigra, alpha-synuclein Lewy bodies), Huntington Disease (caudate atrophy, CAG repeat expansion), ALS (UMN + LMN degeneration).", markers: ["Tau", "Abeta-42", "Alpha-Synuclein"] }
+        ]
+      },
+      endo: {
+        title: "Endocrine Pathology",
+        overview: "Pituitary adenomas, thyroid lesions, adrenal disorders, pancreatic endocrine tumors, and MEN syndromes.",
+        triads: [
+          { name: "Whipple Triad (Insulinoma)", items: ["Symptoms of Hypoglycemia", "Documented Low Plasma Glucose", "Relief of Symptoms with Glucose"] },
+          { name: "MEN 2A Triad", items: ["Medullary Thyroid Carcinoma", "Pheochromocytoma", "Parathyroid Hyperplasia"] }
+        ],
+        pearls: [
+          "Papillary Thyroid Carcinoma: Most common thyroid malignancy; features Orphan Annie eye nuclei, intranuclear pseudoinclusions, and psammoma bodies.",
+          "Pheochromocytoma: Tumor of adrenal medulla chromaffin cells (derived from neural crest); secretes catecholamines; rule of 10s (10% bilateral, 10% malignant, 10% extra-adrenal).",
+          "Cushing Disease: Pituitary ACTH-secreting adenoma leading to adrenal cortical bilateral hyperplasia and hypercortisolism."
+        ],
+        topics: [
+          { title: "Thyroid & Parathyroid Diseases", content: "Hashimoto Thyroiditis (autoimmune destruction, Hurthle cells, germinal centers), Graves Disease (TSH receptor antibodies, diffuse hyperplasia, scalloped colloid), Hyperparathyroidism (osteitis fibrosa cystica).", markers: ["Anti-TPO", "Anti-Thyroglobulin", "PTH", "Calcitonin"] }
+        ]
+      },
+      hema: {
+        title: "Hematopathology",
+        overview: "Anemias, acute and chronic leukemias, non-Hodgkin and Hodgkin lymphomas, and plasma cell dyscrasias.",
+        triads: [
+          { name: "Multiple Myeloma CRAB", items: ["HyperCalcemia", "Renal Insufficiency", "Anemia", "Bone Lesions (Lytic)"] }
+        ],
+        pearls: [
+          "Hodgkin Lymphoma: Reed-Sternberg cells ('owl-eye' binucleated cells positive for CD15+ and CD30+).",
+          "Chronic Myelogenous Leukemia (CML): t(9;22) Philadelphia chromosome creating BCR-ABL fusion tyrosine kinase; treated with Imatinib.",
+          "Burkitt Lymphoma: t(8;14) translocation involving c-MYC; starry-sky appearance on biopsy."
+        ],
+        topics: [
+          { title: "Leukemia & Lymphoma Spectrum", content: "AML (Auer rods, myeloperoxidase positive), ALL (TdT+, most common pediatric leukemia), CLL (smudge cells, CD5+ B-cells), Follicular Lymphoma (t(14;18) Bcl-2 overexpression).", markers: ["CD15", "CD30", "CD19/20", "BCR-ABL", "c-MYC"] }
+        ]
+      }
+    };
+
+    // --- QUIZ QUESTIONS DATABASE ---
+    const QUIZ_QUESTIONS = [
+      {
+        id: 1,
+        mod: 'gen',
+        q: "A 58-year-old man with a history of hypertension experiences sudden onset weakness on the right side of his body. Brain imaging confirms an ischemic infarction in the middle cerebral artery territory. Two weeks later, what microscopic necrotic process dominates the brain lesion?",
+        opts: ["Coagulative necrosis", "Liquefactive necrosis", "Caseous necrosis", "Fibrinoid necrosis"],
+        ans: 1,
+        exp: "Hypoxic/ischemic tissue injury in the central nervous system uniquely results in liquefactive necrosis due to autolysis by microglial enzymes and rich lipid content, creating a fluid-filled cystic space."
+      },
+      {
+        id: 2,
+        mod: 'cv',
+        q: "A 45-year-old female presents with low blood pressure, jugular venous distention, and distant, muffled heart sounds following an acute transmural myocardial infarction 5 days ago. Echocardiogram reveals pericardial effusion. What diagnosis does this triad represent?",
+        opts: ["Infective endocarditis", "Cardiac tamponade", "Acute aortic dissection", "Dilated cardiomyopathy"],
+        ans: 1,
+        exp: "Beck's Triad (hypotension, JVD, muffled heart sounds) indicates acute cardiac tamponade, a life-threatening complication often secondary to myocardial free wall rupture 3-7 days post-MI."
+      },
+      {
+        id: 3,
+        mod: 'resp',
+        q: "A biopsy of a solitary peripheral pulmonary nodule in a non-smoker reveals glandular architecture and mucin production. Immuno-staining is positive for TTF-1 and Cytokeratin 7. What is the most likely tumor classification?",
+        opts: ["Small cell lung carcinoma", "Squamous cell carcinoma", "Adenocarcinoma of the lung", "Large cell neuroendocrine carcinoma"],
+        ans: 2,
+        exp: "Adenocarcinoma is the most common primary lung cancer in non-smokers and females. It characteristically arises peripherally, forms glandular units, produces mucin, and expresses TTF-1 and CK7."
+      },
+      {
+        id: 4,
+        mod: 'gi',
+        q: "A 28-year-old female presents with chronic non-bloody diarrhea, right lower quadrant abdominal pain, and weight loss. Colonoscopy reveals transmural inflammation with mucosal cobblestoning and non-caseating granulomas on biopsy. What is the diagnosis?",
+        opts: ["Ulcerative Colitis", "Crohn's Disease", "Celiac Disease", "Ischemic Colitis"],
+        ans: 1,
+        exp: "Crohn's Disease features transmural inflammation, skip lesions, cobblestones, creeping fat, and non-caseating granulomas, unlike Ulcerative Colitis which is mucosal and continuous."
+      },
+      {
+        id: 5,
+        mod: 'renal',
+        q: "A 6-year-old boy presents with marked generalized edema and facial puffiness. Urinalysis shows 4+ proteinuria without hematuria. Electron microscopy reveals diffuse effacement of podocyte foot processes. What is the diagnosis?",
+        opts: ["Minimal Change Disease", "Focal Segmental Glomerulosclerosis", "Membranous Glomerulonephritis", "IgA Nephropathy"],
+        ans: 0,
+        exp: "Minimal Change Disease is the primary cause of nephrotic syndrome in children. Light microscopy is normal, but electron microscopy demonstrates podocyte foot process effacement. Responds dramatically to corticosteroids."
+      },
+      {
+        id: 6,
+        mod: 'neuro',
+        q: "A brain tumor resection from a 52-year-old male shows dense pseudopalisading necrosis surrounding hypercellular regions and prominent microvascular endothelial proliferation. What is the diagnosis?",
+        opts: ["Meningioma", "Schwannoma", "Glioblastoma Multiforme", "Oligodendroglioma"],
+        ans: 2,
+        exp: "Glioblastoma Multiforme (WHO Grade IV astrocytoma) is characterized histologically by pseudopalisading necrosis and microvascular proliferation. It frequently crosses the corpus callosum."
+      },
+      {
+        id: 7,
+        mod: 'endo',
+        q: "A thyroidectomy specimen from a 34-year-old female with a cold thyroid nodule shows ground-glass nuclei with central clearing ('Orphan Annie' eyes), nuclear grooves, and psammoma bodies. What is the most likely diagnosis?",
+        opts: ["Follicular Carcinoma", "Medullary Carcinoma", "Papillary Thyroid Carcinoma", "Anaplastic Carcinoma"],
+        ans: 2,
+        exp: "Papillary Thyroid Carcinoma is distinguished by Orphan Annie eye nuclei, nuclear pseudoinclusions/grooves, and concentric calcified psammoma bodies."
+      },
+      {
+        id: 8,
+        mod: 'hema',
+        q: "A lymph node biopsy from a 22-year-old male with painless cervical lymphadenopathy shows large binucleated cells with prominent owl-eye eosinophilic nucleoli. The cells are positive for CD15 and CD30. What cell is present?",
+        opts: ["Auer Rod Myeloblast", "Reed-Sternberg Cell", "Sezary Cell", "Prolyphocyte"],
+        ans: 1,
+        exp: "Reed-Sternberg cells (CD15+ and CD30+) with characteristic binucleated 'owl-eye' appearance are the hallmark neoplastic cell of Hodgkin Lymphoma."
+      }
+    ];
+
+    // --- CASE SIMULATOR DATABASE ---
+    const CLINICAL_CASES = [
+      {
+        id: 'c1',
+        title: "Case 1: Sudden Collapse & Severe Chest Pain",
+        history: "A 62-year-old male with long-standing poorly controlled hypertension and smoking history presents with tearing retrosternal pain radiating to the back between the scapulae.",
+        physical: "BP 185/110 mmHg in right arm, 140/85 mmHg in left arm. Diminished radial pulse on the left.",
+        biopsy: "Histology of aortic media shows cystic medial necrosis with loss of elastic fibers and smooth muscle degradation.",
+        diagnosis: "Acute Aortic Dissection (Stanford Type A)",
+        keyTakeaway: "Aortic dissection results from an intimal tear allowing high-pressure blood into the media. Hypertension is the single most critical risk factor."
+      },
+      {
+        id: 'c2',
+        title: "Case 2: Progressive Dyspnea & Microscopic Hematuria",
+        history: "A 32-year-old male develops hemoptysis, shortness of breath, and dark red urine over two weeks.",
+        physical: "Bilateral lung crackles. Urinalysis shows dysmorphic RBCs and RBC casts.",
+        biopsy: "Renal biopsy demonstrates linear immunofluorescence along the glomerular basement membrane against Type IV collagen.",
+        diagnosis: "Goodpasture Syndrome (Anti-GBM Disease)",
+        keyTakeaway: "Anti-GBM antibodies attack alpha-3 chain of Type IV collagen in alveolar and glomerular basement membranes, producing RPGN and pulmonary hemorrhage."
+      }
+    ];
+
+    // --- FLASHCARDS DATABASE ---
+    const FLASHCARDS = [
+      { id: 'f1', front: "Which organ undergoes Liquefactive Necrosis during ischemic infarction?", back: "Brain (CNS). All other solid organs undergo Coagulative Necrosis.", mod: "gen" },
+      { id: 'f2', front: "What is Beck's Triad and what condition does it indicate?", back: "Hypotension, Distended Neck Veins, Muffled Heart Sounds -> Cardiac Tamponade.", mod: "cv" },
+      { id: 'f3', front: "Mnemonic PSMM for Psammoma Bodies:", back: "Papillary thyroid ca, Serous cystadenocarcinoma (ovary), Meningioma, Mesothelioma.", mod: "gen" },
+      { id: 'f4', front: "What genetic translocation defines CML?", back: "t(9;22) Philadelphia chromosome creating the BCR-ABL fusion gene with constitutively active tyrosine kinase activity.", mod: "hema" },
+      { id: 'f5', front: "What tumor marker is associated with Medullary Thyroid Carcinoma?", back: "Calcitonin (produced by parafollicular C-cells). Histology shows amyloid stroma.", mod: "endo" }
+    ];
+
+    // --- MAIN APP COMPONENT ---
+    function App() {
+      const [view, setView] = useState('modules'); // 'modules', 'quiz', 'cases', 'flashcards'
+      const [selectedMod, setSelectedMod] = useState('gen');
+      const [quizIdx, setQuizIdx] = useState(0);
+      const [selectedAns, setSelectedAns] = useState(null);
+      const [showRationale, setShowRationale] = useState(false);
+      const [score, setScore] = useState(0);
+      
+      // Flashcard State
+      const [fcIdx, setFcIdx] = useState(0);
+      const [isFlipped, setIsFlipped] = useState(false);
+
+      const modData = MODULE_DETAILS[selectedMod] || MODULE_DETAILS['gen'];
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Top Navigation Header */}
+          <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-500/30">
+                  <i className="fa-solid fa-microscope"></i>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    Pathology Review Course
+                    <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">v2.5</span>
+                  </h1>
+                  <p className="text-xs text-slate-400">High-Yield Medical Pathology & Board Prep</p>
+                </div>
+              </div>
+
+              {/* View Switcher Tabs */}
+              <nav className="flex bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm font-medium">
+                <button
+                  onClick={() => setView('modules')}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition flex items-center gap-2 ${view === 'modules' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <i className="fa-solid fa-book-open"></i> Study Modules
+                </button>
+                <button
+                  onClick={() => setView('quiz')}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition flex items-center gap-2 ${view === 'quiz' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <i className="fa-solid fa-circle-question"></i> Quiz
+                </button>
+                <button
+                  onClick={() => setView('cases')}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition flex items-center gap-2 ${view === 'cases' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <i className="fa-solid fa-notes-medical"></i> Cases
+                </button>
+                <button
+                  onClick={() => setView('flashcards')}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition flex items-center gap-2 ${view === 'flashcards' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <i className="fa-solid fa-layer-group"></i> Flashcards
+                </button>
+              </nav>
+            </div>
+          </header>
+
+          {/* Main Content Area */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+            
+            {/* VIEW 1: MODULES */}
+            {view === 'modules' && (
+              <div className="space-y-6">
+                {/* Organ System Selector Cards */}
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Select Organ System</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                    {ORGAN_SYSTEMS.map((sys) => {
+                      const active = selectedMod === sys.id;
+                      return (
+                        <button
+                          key={sys.id}
+                          onClick={() => setSelectedMod(sys.id)}
+                          className={`p-3 rounded-xl border text-left transition relative overflow-hidden flex flex-col justify-between ${
+                            active 
+                              ? 'border-indigo-500 bg-indigo-950/40 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500' 
+                              : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          <div>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm mb-2 ${active ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                              <i className={`fa-solid ${sys.icon}`}></i>
+                            </div>
+                            <div className="font-semibold text-xs leading-snug">{sys.name}</div>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400">{sys.count} Topics</span>
+                            <span className="text-indigo-400 font-medium">{sys.tag}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Active Module Detail Panel */}
+                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
+                  <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6 pb-6 border-b border-slate-800">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                          Active System
+                        </span>
+                        <span className="text-xs text-slate-400">• High-Yield Medical Review</span>
+                      </div>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-2">{modData.title}</h2>
+                      <p className="text-slate-300 text-sm mt-1 max-w-3xl leading-relaxed">{modData.overview}</p>
+                    </div>
+                  </div>
+
+                  {/* Triads & Pearls Grid */}
+                  <div className="grid md:grid-cols-2 gap-6 my-6">
+                    {/* High-Yield Triads Card */}
+                    <div className="bg-slate-950/60 border border-amber-500/30 rounded-xl p-5 shadow-inner">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold text-sm mb-4">
+                        <i className="fa-solid fa-bolt"></i>
+                        <h3>High-Yield Diagnostic Triads</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {modData.triads.map((t, i) => (
+                          <div key={i} className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                            <div className="text-xs font-semibold text-amber-300 mb-2">{t.name}:</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {t.items.map((item, idx) => (
+                                <span key={idx} className="bg-amber-950/50 text-amber-200 border border-amber-800/60 text-[11px] px-2.5 py-1 rounded-md">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Clinical Pearls Card */}
+                    <div className="bg-slate-950/60 border border-emerald-500/30 rounded-xl p-5 shadow-inner">
+                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm mb-4">
+                        <i className="fa-solid fa-lightbulb"></i>
+                        <h3>Clinical Pearls & Pathognomonic Signs</h3>
+                      </div>
+                      <ul className="space-y-3">
+                        {modData.pearls.map((p, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-xs text-slate-300 bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                            <i className="fa-solid fa-circle-check text-emerald-400 text-xs mt-0.5"></i>
+                            <span className="leading-relaxed">{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Core Topic Breakdown */}
+                  <div className="space-y-4 mt-8">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <i className="fa-solid fa-list-check text-indigo-400"></i>
+                      Core Pathology Topics & Markers
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {modData.topics.map((top, idx) => (
+                        <div key={idx} className="bg-slate-950/40 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition">
+                          <h4 className="text-md font-semibold text-indigo-300 mb-2">{top.title}</h4>
+                          <p className="text-xs text-slate-300 leading-relaxed mb-4">{top.content}</p>
+                          <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400 font-medium mr-1">Biomarkers & Stains:</span>
+                            {top.markers.map((m, mIdx) => (
+                              <span key={mIdx} className="bg-indigo-950/80 text-indigo-300 text-[10px] px-2 py-0.5 rounded border border-indigo-800/60">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 2: INTERACTIVE QUIZ */}
+            {view === 'quiz' && (
+              <div className="max-w-3xl mx-auto space-y-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-800">
+                    <div>
+                      <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                        Question {quizIdx + 1} of {QUIZ_QUESTIONS.length}
+                      </span>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        Module: <span className="text-slate-200 capitalize">{QUIZ_QUESTIONS[quizIdx].mod} Pathology</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                      <i className="fa-solid fa-trophy text-amber-400 text-xs"></i>
+                      <span className="text-xs font-semibold text-slate-200">Score: {score}</span>
+                    </div>
+                  </div>
+
+                  {/* Question Text */}
+                  <h3 className="text-base sm:text-lg font-semibold text-white leading-relaxed mb-6">
+                    {QUIZ_QUESTIONS[quizIdx].q}
+                  </h3>
+
+                  {/* Options */}
+                  <div className="space-y-3 mb-6">
+                    {QUIZ_QUESTIONS[quizIdx].opts.map((opt, oIdx) => {
+                      let btnStyle = "bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-600 hover:bg-slate-800/50";
+                      if (showRationale) {
+                        if (oIdx === QUIZ_QUESTIONS[quizIdx].ans) {
+                          btnStyle = "bg-emerald-950/80 text-emerald-200 border-emerald-500 ring-1 ring-emerald-500 font-medium";
+                        } else if (oIdx === selectedAns) {
+                          btnStyle = "bg-rose-950/80 text-rose-200 border-rose-500";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={oIdx}
+                          disabled={showRationale}
+                          onClick={() => {
+                            setSelectedAns(oIdx);
+                            setShowRationale(true);
+                            if (oIdx === QUIZ_QUESTIONS[quizIdx].ans) setScore(score + 1);
+                          }}
+                          className={`w-full text-left p-4 rounded-xl border text-sm transition flex items-center justify-between ${btnStyle}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                              {String.fromCharCode(65 + oIdx)}
+                            </span>
+                            <span>{opt}</span>
+                          </div>
+                          {showRationale && oIdx === QUIZ_QUESTIONS[quizIdx].ans && (
+                            <i className="fa-solid fa-circle-check text-emerald-400"></i>
+                          )}
+                          {showRationale && oIdx === selectedAns && oIdx !== QUIZ_QUESTIONS[quizIdx].ans && (
+                            <i className="fa-solid fa-circle-xmark text-rose-400"></i>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Rationale Explanation Box */}
+                  {showRationale && (
+                    <div className="bg-indigo-950/40 border border-indigo-800/60 rounded-xl p-4 mb-6">
+                      <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
+                        <i className="fa-solid fa-graduation-cap"></i> Diagnostic Rationale
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">{QUIZ_QUESTIONS[quizIdx].exp}</p>
+                    </div>
+                  )}
+
+                  {/* Next Button */}
+                  {showRationale && (
+                    <button
+                      onClick={() => {
+                        setShowRationale(false);
+                        setSelectedAns(null);
+                        setQuizIdx((quizIdx + 1) % QUIZ_QUESTIONS.length);
+                      }}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                    >
+                      <span>Next Question</span>
+                      <i className="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 3: CASE SIMULATOR */}
+            {view === 'cases' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-white">Clinical Vignette Simulator</h2>
+                  <p className="text-xs text-slate-400 mt-1">Practice board-style clinical scenarios with physical & biopsy findings</p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {CLINICAL_CASES.map((c) => (
+                    <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-indigo-300 border-b border-slate-800 pb-3">{c.title}</h3>
+                        
+                        <div>
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Clinical History</div>
+                          <p className="text-xs text-slate-200 leading-relaxed bg-slate-950 p-3 rounded-lg border border-slate-800/60">{c.history}</p>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Physical Examination</div>
+                          <p className="text-xs text-slate-200 leading-relaxed bg-slate-950 p-3 rounded-lg border border-slate-800/60">{c.physical}</p>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Biopsy / Histology</div>
+                          <p className="text-xs text-slate-200 leading-relaxed bg-slate-950 p-3 rounded-lg border border-slate-800/60">{c.biopsy}</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800">
+                        <div className="bg-emerald-950/50 border border-emerald-500/30 rounded-xl p-3">
+                          <div className="text-xs font-bold text-emerald-400 mb-1">Diagnosis: {c.diagnosis}</div>
+                          <p className="text-[11px] text-slate-300">{c.keyTakeaway}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 4: FLASHCARDS */}
+            {view === 'flashcards' && (
+              <div className="max-w-xl mx-auto space-y-6 text-center">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Rapid Recall Flashcards</h2>
+                  <p className="text-xs text-slate-400 mt-1">Click the card to reveal answer</p>
+                </div>
+
+                {/* 3D Flip Flashcard */}
+                <div 
+                  onClick={() => setIsFlipped(!isFlipped)}
+                  className="cursor-pointer perspective-1000 h-64 w-full"
+                >
+                  <div className={`relative w-full h-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
+                    {/* Front */}
+                    <div className="absolute inset-0 bg-slate-900 border-2 border-indigo-500/50 rounded-2xl p-6 flex flex-col justify-between backface-hidden shadow-2xl">
+                      <div className="flex justify-between text-xs text-slate-400">
+                        <span>Card {fcIdx + 1} of {FLASHCARDS.length}</span>
+                        <span className="text-indigo-400 font-semibold uppercase">{FLASHCARDS[fcIdx].mod}</span>
+                      </div>
+                      <div className="text-lg font-medium text-white px-4">{FLASHCARDS[fcIdx].front}</div>
+                      <div className="text-xs text-indigo-400 font-semibold flex items-center justify-center gap-1">
+                        <i className="fa-solid fa-rotate"></i> Click to flip
+                      </div>
+                    </div>
+
+                    {/* Back */}
+                    <div className="absolute inset-0 bg-indigo-950 border-2 border-indigo-400 rounded-2xl p-6 flex flex-col justify-between backface-hidden rotate-y-180 shadow-2xl">
+                      <div className="text-xs text-indigo-300 font-bold uppercase tracking-wider">Answer / High-Yield Fact</div>
+                      <div className="text-sm sm:text-base text-slate-100 font-medium px-4 leading-relaxed">{FLASHCARDS[fcIdx].back}</div>
+                      <div className="text-xs text-indigo-300 font-semibold flex items-center justify-center gap-1">
+                        <i className="fa-solid fa-rotate"></i> Click to flip back
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Navigation Controls */}
+                <div className="flex justify-between items-center pt-4">
+                  <button 
+                    onClick={() => { setIsFlipped(false); setFcIdx((fcIdx - 1 + FLASHCARDS.length) % FLASHCARDS.length); }}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition">
+                    <i className="fa-solid fa-chevron-left mr-1"></i> Previous
+                  </button>
+                  <button 
+                    onClick={() => { setIsFlipped(false); setFcIdx((fcIdx + 1) % FLASHCARDS.length); }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">
+                    Next Card <i className="fa-solid fa-chevron-right ml-1"></i>
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Footer */}
+          <footer className="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
+            <p>Pathology Review App • Standalone HTML Single-File Application</p>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
